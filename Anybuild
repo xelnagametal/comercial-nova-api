@@ -1,0 +1,22 @@
+# Anybuild build definition for Wasmer — https://anybuild.run
+# Mirrors the auto-detected Laravel config, with PHP pinned to 8.5:
+# the locked dependencies (Symfony 8, Pest 5, PHPUnit 13) require PHP >= 8.4.1,
+# while Anybuild's default is 8.3.29.
+
+load("//anybuild/tools:laravel.bzl", "laravel_build", "laravel_config", "laravel_serve")
+
+config = laravel_config(
+    schema = 1,
+    node_package_manager = "npm",
+    node_version = "24",
+    npm_version = "11",
+    php_framework = "laravel",
+    composer_enable = True,
+    composer_build_script = "post-update-cmd",
+    php_version = "8.5",
+    php_public_dir = "public",
+)
+
+build = laravel_build(config)
+
+laravel_serve(config, build)

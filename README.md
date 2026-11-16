@@ -1,58 +1,168 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Comercial Nova API
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+API REST construida con Laravel 13 y autenticada con tokens Bearer de [Laravel Sanctum](https://laravel.com/docs/sanctum). No usa sesión ni cookies: cada cliente recibe un Personal Access Token que envía en el header `Authorization`.
 
-## About Laravel
+## Stack
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+| Componente | Versión |
+| --- | --- |
+| PHP | 8.5 (los paquetes bloqueados exigen 8.4.1 o superior) |
+| Laravel | 13 |
+| Laravel Sanctum | 4 |
+| Pest | 5 |
+| Base de datos | SQLite por defecto |
+| Node | 24 (Vite 8 y Tailwind CSS 4) |
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
-
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
-
-## Learning Laravel
-
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
-
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
-
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
-
-## Agentic Development
-
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
+## Instalación
 
 ```bash
-composer require laravel/boost --dev
-
-php artisan boost:install
+git clone git@github.com:xelnagametal/comercial-nova-api.git
+cd comercial-nova-api
+composer run setup
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+`composer run setup` instala las dependencias de PHP y Node, crea `.env` a partir de `.env.example`, genera `APP_KEY`, ejecuta las migraciones y compila los assets.
 
-## Contributing
+La configuración por defecto usa SQLite (`database/database.sqlite`). Para otro motor, edita las variables `DB_*` de `.env` y vuelve a ejecutar `php artisan migrate`.
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+## Desarrollo
 
-## Code of Conduct
+```bash
+composer run dev
+```
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+Levanta los procesos de desarrollo. La API queda disponible en `http://localhost:8000/api`.
 
-## Security Vulnerabilities
+Si solo necesitas el servidor HTTP, usa `php artisan serve`.
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+## Endpoints
 
-## License
+Todas las rutas llevan el prefijo `/api` y responden en JSON, también en los errores.
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+| Método | Ruta | Autenticación | Descripción |
+| --- | --- | --- | --- |
+| POST | `/api/register` | No | Crea un usuario y devuelve su token |
+| POST | `/api/login` | No | Valida credenciales y devuelve un token nuevo |
+| GET | `/api/me` | Bearer | Devuelve el usuario dueño del token |
+| POST | `/api/logout` | Bearer | Revoca el token usado en la petición |
+| GET | `/up` | No | Health check de Laravel |
+
+`/api/register` y `/api/login` comparten un límite de 6 peticiones por minuto por IP; al superarlo responden `429`.
+
+### Registro
+
+```bash
+curl -X POST http://localhost:8000/api/register \
+  -H "Accept: application/json" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Ana Pérez",
+    "email": "ana@example.com",
+    "password": "secreto123",
+    "password_confirmation": "secreto123",
+    "device_name": "postman"
+  }'
+```
+
+Respuesta `201`:
+
+```json
+{
+  "user": {
+    "id": 1,
+    "name": "Ana Pérez",
+    "email": "ana@example.com",
+    "created_at": "2026-11-16T15:04:05.000000Z",
+    "updated_at": "2026-11-16T15:04:05.000000Z"
+  },
+  "token": "1|Xk3..."
+}
+```
+
+| Campo | Reglas |
+| --- | --- |
+| `name` | Obligatorio, máximo 255 caracteres |
+| `email` | Obligatorio, email válido y único |
+| `password` | Obligatorio, mínimo 8 caracteres, con `password_confirmation` |
+| `device_name` | Obligatorio; nombre con el que se guarda el token |
+
+### Login
+
+```bash
+curl -X POST http://localhost:8000/api/login \
+  -H "Accept: application/json" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "ana@example.com",
+    "password": "secreto123",
+    "device_name": "postman"
+  }'
+```
+
+Responde `200` con el mismo formato que el registro. Si las credenciales no son válidas responde `422` con el mismo mensaje tanto si el correo no existe como si la contraseña es incorrecta.
+
+### Rutas protegidas
+
+```bash
+curl http://localhost:8000/api/me \
+  -H "Accept: application/json" \
+  -H "Authorization: Bearer 1|Xk3..."
+```
+
+Sin token, o con un token vencido o revocado, la respuesta es `401`.
+
+`POST /api/logout` revoca únicamente el token de la petición y responde `204` sin cuerpo. Los tokens de otros dispositivos siguen activos.
+
+### Tokens
+
+- Cada login o registro emite un token nuevo; un usuario puede tener varios a la vez.
+- Los tokens vencen a las 24 horas (`expiration` en `config/sanctum.php`).
+- El scheduler ejecuta `sanctum:prune-expired --hours=24` una vez al día para borrar los tokens vencidos. En local se activa con `php artisan schedule:work`; en producción hace falta un cron que ejecute `php artisan schedule:run` cada minuto.
+
+## Tests
+
+```bash
+composer run test
+```
+
+Para ejecutar un archivo o un test concreto:
+
+```bash
+php artisan test --compact tests/Feature/Http/Controllers/Api/AuthControllerTest.php
+php artisan test --compact --filter="returns 401 when no token is provided"
+```
+
+| Archivo | Qué cubre |
+| --- | --- |
+| `tests/Feature/Http/Controllers/Api/AuthControllerTest.php` | Registro, login, `/api/me`, logout, validaciones, vencimiento de tokens y límite de intentos |
+| `tests/Unit/ArchTest.php` | Reglas de arquitectura: sin funciones de depuración ni funciones inseguras, y controladores que extienden el controlador base |
+
+Los tests usan SQLite en memoria (ver `phpunit.xml`).
+
+## Estilo de código
+
+```bash
+vendor/bin/pint --dirty
+```
+
+## Despliegue
+
+El build de producción se define en el archivo `Anybuild`:
+
+- Fija PHP 8.5, porque el valor por defecto de Anybuild (8.3) no cumple el mínimo de las dependencias.
+- Ejecuta un script de Composer propio en lugar de `post-update-cmd`, que depende de un comando de Laravel Boost disponible solo en local.
+- Ejecuta `php artisan migrate --force` después de cada despliegue.
+
+Las variables de producción van en `.env.production`, que no se versiona.
+
+## Estructura
+
+```
+app/Http/Controllers/Api/   Controladores de la API
+app/Models/                 Modelos Eloquent
+routes/api.php              Rutas de la API
+routes/console.php          Tareas programadas
+database/migrations/        Migraciones
+tests/                      Tests de Pest (Feature y Unit)
+Anybuild                    Definición de build para el despliegue
+```

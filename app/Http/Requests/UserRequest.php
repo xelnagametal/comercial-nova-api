@@ -2,7 +2,6 @@
 
 namespace App\Http\Requests;
 
-use App\Enums\Rol;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -12,6 +11,7 @@ use Illuminate\Validation\Rules\Password;
  * Valida la creación (POST) y la actualización (PUT/PATCH) de un usuario.
  *
  * Al actualizar, la contraseña es opcional: si no se envía se conserva la actual.
+ * `roles` es la lista completa de roles del usuario (al menos uno).
  */
 class UserRequest extends FormRequest
 {
@@ -40,7 +40,8 @@ class UserRequest extends FormRequest
                 'confirmed',
                 Password::defaults(),
             ],
-            'rol' => ['required', Rule::enum(Rol::class)],
+            'roles' => ['required', 'array', 'min:1'],
+            'roles.*' => ['string', 'distinct', Rule::exists('roles', 'name')->where('guard_name', 'web')],
             'activo' => ['sometimes', 'boolean'],
         ];
     }

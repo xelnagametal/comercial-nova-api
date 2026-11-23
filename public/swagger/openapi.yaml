@@ -3,13 +3,14 @@ info:
   title: Comercial Nova API
   version: 1.0.0
   description: |
-    API REST del sistema comercial (maestros de usuarios, categorías, clientes y productos).
+    API REST del sistema comercial (maestros de usuarios, roles, categorías, clientes y productos).
 
     **Autenticación:** obtén un token con `POST /login` y pulsa **Authorize** pegando solo el token
     (Swagger añade el prefijo `Bearer`). Usuario de prueba del seeder: `admin@example.com` / `password`.
 
     **Permisos:** cada acción de los maestros exige el permiso `{recurso}.{accion}`
-    (`ver`, `crear`, `editar`, `eliminar`). Sin él la API responde 403.
+    (`ver`, `crear`, `editar`, `eliminar`). Sin él la API responde 403. Los usuarios reciben
+    permisos solo a través de sus roles; los permisos de cada rol se gestionan en `/roles`.
 servers:
   - url: /api
     description: Mismo host que sirve esta documentación
@@ -17,6 +18,8 @@ servers:
 tags:
   - name: Autenticación
   - name: Usuarios
+  - name: Roles
+  - name: Permisos
   - name: Categorías
   - name: Clientes
   - name: Productos
@@ -131,7 +134,9 @@ paths:
       summary: Actualizar usuario
       description: |
         Permiso: `usuarios.editar`. La contraseña es opcional (si se omite se conserva).
-        El rol enviado reemplaza al actual. Si `activo` pasa a `false` se revocan sus tokens.
+        `roles` es la lista completa: reemplaza los roles actuales (quitar uno = no enviarlo).
+        Un administrador no puede quitarse a sí mismo el rol `administrador` (409).
+        Si `activo` pasa a `false` se revocan sus tokens.
       requestBody:
         required: true
         content:
@@ -142,6 +147,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
         '422': { $ref: '#/components/responses/ValidationError' }
     delete:
       tags: [Usuarios]
@@ -153,6 +159,102 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+
+  /roles:
+    get:
+      tags: [Roles]
+      summary: Listar roles
+      description: 'Permiso: `roles.ver`. Ordenados por nombre, con sus permisos y cantidad de usuarios.'
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PerPage'
+      responses:
+        '200':
+          description: Página de roles
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Paginated'
+                  - type: object
+                    properties:
+                      data: { type: array, items: { $ref: '#/components/schemas/Role' } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Roles]
+      summary: Crear rol
+      description: 'Permiso: `roles.crear`.'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RoleInput' }
+      responses:
+        '201': { $ref: '#/components/responses/RoleItem' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  /roles/{role}:
+    parameters:
+      - { name: role, in: path, required: true, schema: { type: integer } }
+    get:
+      tags: [Roles]
+      summary: Ver rol
+      description: 'Permiso: `roles.ver`.'
+      responses:
+        '200': { $ref: '#/components/responses/RoleItem' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [Roles]
+      summary: Actualizar rol
+      description: |
+        Permiso: `roles.editar`. `permisos` es la lista completa: reemplaza los permisos actuales
+        y afecta de inmediato a todos los usuarios con el rol. El rol `administrador` no se puede editar (409).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RoleInput' }
+      responses:
+        '200': { $ref: '#/components/responses/RoleItem' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+    delete:
+      tags: [Roles]
+      summary: Eliminar rol
+      description: 'Permiso: `roles.eliminar`. Responde 409 si es `administrador` o si tiene usuarios asignados.'
+      responses:
+        '204': { description: Eliminado }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /permisos:
+    get:
+      tags: [Permisos]
+      summary: Catálogo de permisos agrupado por recurso
+      description: |
+        Permiso: `permisos.ver`. Solo lectura y sin paginar: los permisos se definen en el código
+        porque cada uno protege una ruta. Útil para pintar la matriz de permisos de un rol.
+      responses:
+        '200':
+          description: Permisos agrupados por recurso
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/PermisoGrupo' } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
 
   /categorias:
     get:
@@ -421,14 +523,54 @@ components:
         - $ref: '#/components/schemas/Timestamps'
     UserInput:
       type: object
-      required: [name, email, rol]
+      required: [name, email, roles]
       properties:
         name: { type: string, maxLength: 255, example: Ana Pérez }
         email: { type: string, format: email, maxLength: 255, example: ana@example.com }
         password: { type: string, format: password, minLength: 8, example: secreto123 }
         password_confirmation: { type: string, format: password, example: secreto123 }
-        rol: { type: string, enum: [administrador, vendedor], example: vendedor }
+        roles:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          description: Lista completa de roles del usuario (nombres existentes en `GET /roles`).
+          items: { type: string }
+          example: [vendedor]
         activo: { type: boolean, example: true }
+
+    Role:
+      allOf:
+        - type: object
+          properties:
+            id: { type: integer, example: 2 }
+            name: { type: string, example: vendedor }
+            permisos: { type: array, items: { type: string }, example: [categorias.ver, clientes.ver] }
+            users_count: { type: integer, example: 20 }
+        - $ref: '#/components/schemas/Timestamps'
+    RoleInput:
+      type: object
+      required: [name, permisos]
+      properties:
+        name: { type: string, maxLength: 255, description: Único, example: supervisor }
+        permisos:
+          type: array
+          uniqueItems: true
+          description: Lista completa de permisos del rol (puede ir vacía). Nombres de `GET /permisos`.
+          items: { type: string }
+          example: [productos.ver, productos.crear]
+
+    PermisoGrupo:
+      type: object
+      properties:
+        recurso: { type: string, example: productos }
+        permisos:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: integer, example: 17 }
+              name: { type: string, example: productos.crear }
+              accion: { type: string, example: crear }
 
     Categoria:
       allOf:
@@ -531,6 +673,14 @@ components:
             type: object
             properties:
               data: { $ref: '#/components/schemas/User' }
+    RoleItem:
+      description: Rol
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              data: { $ref: '#/components/schemas/Role' }
     CategoriaItem:
       description: Categoría
       content:

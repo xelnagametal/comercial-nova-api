@@ -12,6 +12,13 @@ enum Permiso: string
     case UsuariosEditar = 'usuarios.editar';
     case UsuariosEliminar = 'usuarios.eliminar';
 
+    case RolesVer = 'roles.ver';
+    case RolesCrear = 'roles.crear';
+    case RolesEditar = 'roles.editar';
+    case RolesEliminar = 'roles.eliminar';
+
+    case PermisosVer = 'permisos.ver';
+
     case CategoriasVer = 'categorias.ver';
     case CategoriasCrear = 'categorias.crear';
     case CategoriasEditar = 'categorias.editar';

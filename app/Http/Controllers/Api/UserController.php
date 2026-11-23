@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\Rol;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\UserRequest;
 use App\Http\Resources\UserResource;
@@ -12,7 +13,7 @@ use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
 
 /**
- * CRUD del maestro de usuarios. Cada usuario tiene exactamente un rol.
+ * CRUD del maestro de usuarios. Cada usuario tiene uno o más roles; sus permisos vienen de ellos.
  */
 class UserController extends Controller
 {
@@ -30,13 +31,13 @@ class UserController extends Controller
     }
 
     /**
-     * Crea un usuario con el rol indicado (201).
+     * Crea un usuario con los roles indicados (201).
      */
     public function store(UserRequest $request): UserResource
     {
         $usuario = DB::transaction(function () use ($request): User {
             $usuario = User::create($request->safe()->only(['name', 'email', 'password', 'activo']));
-            $usuario->assignRole($request->validated('rol'));
+            $usuario->assignRole($request->validated('roles'));
 
             return $usuario;
         });
@@ -53,19 +54,30 @@ class UserController extends Controller
     }
 
     /**
-     * Actualiza un usuario y reemplaza su rol. Si se desactiva, se revocan sus tokens.
+     * Actualiza un usuario y reemplaza sus roles. Si se desactiva, se revocan sus tokens.
+     * Un administrador no puede quitarse a sí mismo el rol administrador (409).
      */
     public function update(UserRequest $request, User $user): UserResource
     {
+        $roles = $request->validated('roles');
+
+        abort_if(
+            $user->is($request->user())
+                && $user->hasRole(Rol::Administrador->value)
+                && ! in_array(Rol::Administrador->value, $roles, true),
+            Response::HTTP_CONFLICT,
+            'No puede quitarse a sí mismo el rol administrador.',
+        );
+
         $datos = $request->safe()->only(['name', 'email', 'password', 'activo']);
 
         if (blank($datos['password'] ?? null)) {
             unset($datos['password']);
         }
 
-        DB::transaction(function () use ($user, $datos, $request): void {
+        DB::transaction(function () use ($user, $datos, $roles): void {
             $user->update($datos);
-            $user->syncRoles($request->validated('rol'));
+            $user->syncRoles($roles);
 
             if (! $user->activo) {
                 $user->tokens()->delete();

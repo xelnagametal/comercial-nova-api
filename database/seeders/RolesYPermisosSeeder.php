@@ -10,8 +10,11 @@ use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
 
 /**
- * Crea los permisos y roles definidos en los enums y sincroniza los permisos de cada rol.
+ * Crea los permisos y roles definidos en los enums.
  * Es idempotente: se puede volver a ejecutar tras cambiar los enums.
+ *
+ * El administrador siempre se sincroniza con todos los permisos. Los demás roles reciben
+ * sus permisos por defecto solo al crearse, para no pisar los cambios hechos desde la API.
  *
  * La caché de spatie se limpia a mano tras cada paso porque DatabaseSeeder usa
  * WithoutModelEvents y spatie solo la limpia mediante eventos de modelo.
@@ -33,9 +36,13 @@ class RolesYPermisosSeeder extends Seeder
         $registrar->forgetCachedPermissions();
 
         foreach (RolEnum::cases() as $rol) {
-            Role::findOrCreate($rol->value, 'web')->syncPermissions(
-                array_map(fn (PermisoEnum $permiso): string => $permiso->value, $rol->permisos()),
-            );
+            $role = Role::findOrCreate($rol->value, 'web');
+
+            if ($rol === RolEnum::Administrador || $role->wasRecentlyCreated) {
+                $role->syncPermissions(
+                    array_map(fn (PermisoEnum $permiso): string => $permiso->value, $rol->permisos()),
+                );
+            }
         }
 
         $registrar->forgetCachedPermissions();

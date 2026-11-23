@@ -3,7 +3,9 @@
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CategoriaController;
 use App\Http\Controllers\Api\ClienteController;
+use App\Http\Controllers\Api\PermisoController;
 use App\Http\Controllers\Api\ProductoController;
+use App\Http\Controllers\Api\RoleController;
 use App\Http\Controllers\Api\UserController;
 use Illuminate\Support\Facades\Route;
 
@@ -21,6 +23,15 @@ Route::middleware('auth:sanctum')->group(function () {
         ->middlewareFor('store', 'can:usuarios.crear')
         ->middlewareFor('update', 'can:usuarios.editar')
         ->middlewareFor('destroy', 'can:usuarios.eliminar');
+
+    Route::apiResource('roles', RoleController::class)
+        ->middlewareFor(['index', 'show'], 'can:roles.ver')
+        ->middlewareFor('store', 'can:roles.crear')
+        ->middlewareFor('update', 'can:roles.editar')
+        ->middlewareFor('destroy', 'can:roles.eliminar');
+
+    // Catálogo de permisos de solo lectura (se definen en el enum Permiso).
+    Route::get('/permisos', [PermisoController::class, 'index'])->middleware('can:permisos.ver');
 
     Route::apiResource('categorias', CategoriaController::class)
         ->middlewareFor(['index', 'show'], 'can:categorias.ver')

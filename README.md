@@ -106,7 +106,7 @@ Sin token, o con un token vencido o revocado, la respuesta es `401`. Con token p
 
 ### Maestros
 
-`users`, `categorias`, `clientes` y `productos` exponen el mismo CRUD:
+`users`, `roles`, `categorias`, `clientes` y `productos` exponen el mismo CRUD:
 
 | Método | Ruta | Permiso | Respuesta |
 | --- | --- | --- | --- |
@@ -114,21 +114,25 @@ Sin token, o con un token vencido o revocado, la respuesta es `401`. Con token p
 | POST | `/api/{recurso}` | `{recurso}.crear` | `201` |
 | GET | `/api/{recurso}/{id}` | `{recurso}.ver` | `200` |
 | PUT/PATCH | `/api/{recurso}/{id}` | `{recurso}.editar` | `200` |
-| DELETE | `/api/{recurso}/{id}` | `{recurso}.eliminar` | `204`, borrado lógico |
+| DELETE | `/api/{recurso}/{id}` | `{recurso}.eliminar` | `204`, borrado lógico (los roles se borran físicamente) |
 
 - El permiso de `/api/users` usa el recurso `usuarios` (por ejemplo `usuarios.ver`).
 - `per_page` vale 15 por defecto y se limita entre 1 y 100.
-- **Usuarios:** se envía `rol` (`administrador` o `vendedor`). Al editar, la contraseña es opcional. Desactivar (`activo: false`) o eliminar un usuario revoca sus tokens. Un usuario no puede eliminarse a sí mismo (`409`).
+- **Usuarios:** se envía `roles` con la lista completa de roles (al menos uno, por ejemplo `["vendedor"]`); al editar reemplaza los actuales, así que para revocar un rol basta con no enviarlo. Al editar, la contraseña es opcional. Desactivar (`activo: false`) o eliminar un usuario revoca sus tokens. Un usuario no puede eliminarse a sí mismo ni quitarse el rol `administrador` (`409`).
+- **Roles:** se envía `name` y `permisos` con la lista completa de permisos del rol (puede ir vacía); al editar reemplaza los actuales y afecta a todos los usuarios con ese rol. El rol `administrador` no se puede editar ni eliminar, y no se puede eliminar un rol con usuarios (`409`).
 - **Categorías:** no se puede eliminar una categoría con productos (`409`).
 - **Productos:** no aceptan `stock`. Al editar hay que enviar la `version` leída; si otro usuario lo modificó antes, responde `409` (bloqueo optimista).
 
 ### Roles y permisos
 
-Los permisos siguen el formato `{recurso}.{accion}` y están definidos en `app/Enums/Permiso.php`; los roles y sus permisos, en `app/Enums/Rol.php`. Tras cambiarlos, ejecuta `php artisan db:seed --class=RolesYPermisosSeeder`.
+Los usuarios reciben permisos solo a través de sus roles (no hay permisos directos por usuario).
 
-| Rol | Permisos |
+- **Permisos:** siguen el formato `{recurso}.{accion}` y están definidos en `app/Enums/Permiso.php`, porque cada uno debe estar verificado por una ruta. Son de solo lectura: `GET /api/permisos` (permiso `permisos.ver`) devuelve el catálogo agrupado por recurso, útil para pintar la matriz de permisos de un rol. Tras añadir uno, ejecuta `php artisan db:seed --class=RolesYPermisosSeeder`.
+- **Roles:** se gestionan con el CRUD de `/api/roles`. Los roles por defecto están en `app/Enums/Rol.php`; el seeder siempre le da todos los permisos al `administrador`, pero a los demás roles solo les asigna sus permisos por defecto al crearlos, para no pisar los cambios hechos desde la API.
+
+| Rol por defecto | Permisos |
 | --- | --- |
-| `administrador` | Todos |
+| `administrador` | Todos (protegido) |
 | `vendedor` | `categorias.ver`, `productos.ver`, `clientes.ver`, `clientes.crear`, `clientes.editar` |
 
 ### Tokens
@@ -153,9 +157,10 @@ php artisan test --compact --filter="returns 401 when no token is provided"
 | Archivo | Qué cubre |
 | --- | --- |
 | `tests/Feature/Http/Controllers/Api/AuthControllerTest.php` | Login (con roles y permisos), `/api/me`, logout, usuarios inactivos o eliminados, vencimiento de tokens y límite de intentos |
-| `tests/Feature/Http/Controllers/Api/UserControllerTest.php` | CRUD de usuarios, asignación de roles, revocación de tokens y acceso denegado a vendedores |
+| `tests/Feature/Http/Controllers/Api/UserControllerTest.php` | CRUD de usuarios, asignación de varios roles, revocación de tokens y acceso denegado a vendedores |
 | `tests/Feature/Http/Controllers/Api/CategoriaControllerTest.php`, `ClienteControllerTest.php`, `ProductoControllerTest.php` | CRUD de los maestros, paginado, validaciones, permisos y bloqueo optimista de productos |
-| `tests/Feature/Database/RolesYPermisosSeederTest.php` | Permisos de cada rol |
+| `tests/Feature/Http/Controllers/Api/RoleControllerTest.php`, `PermisoControllerTest.php` | CRUD de roles con sincronización de permisos, rol administrador protegido y catálogo de permisos |
+| `tests/Feature/Database/RolesYPermisosSeederTest.php` | Permisos de cada rol y re-ejecución sin pisar cambios hechos por API |
 | `tests/Unit/ArchTest.php` | Reglas de arquitectura: sin funciones de depuración ni funciones inseguras, y controladores que extienden el controlador base |
 
 Los tests usan SQLite en memoria (ver `phpunit.xml`).

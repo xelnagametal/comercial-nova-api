@@ -3,6 +3,7 @@
 use App\Enums\Rol;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
+use Spatie\Permission\Models\Role;
 
 /**
  * Payload válido para crear o actualizar un usuario, con los cambios indicados.
@@ -17,7 +18,7 @@ function usuarioPayload(array $overrides = []): array
         'email' => 'ana@example.com',
         'password' => 'secreto123',
         'password_confirmation' => 'secreto123',
-        'rol' => 'vendedor',
+        'roles' => ['vendedor'],
         ...$overrides,
     ];
 }
@@ -45,7 +46,7 @@ it('shows a user with roles and permissions', function () {
 
     $response->assertOk()
         ->assertJsonPath('data.roles', ['administrador'])
-        ->assertJsonCount(16, 'data.permisos');
+        ->assertJsonCount(21, 'data.permisos');
 });
 
 it('creates a user with the given role and a hashed password', function () {
@@ -68,7 +69,7 @@ it('requires the user fields', function () {
         'name' => 'The name field is required.',
         'email' => 'The email field is required.',
         'password' => 'The password field is required.',
-        'rol' => 'The rol field is required.',
+        'roles' => 'The roles field is required.',
     ]);
 });
 
@@ -80,7 +81,8 @@ it('rejects invalid user values', function (array $overrides, string $field, str
     $response->assertUnprocessable()->assertJsonValidationErrors([$field => $message]);
 })->with([
     'duplicated email' => [['email' => 'repetido@example.com'], 'email', 'The email has already been taken.'],
-    'unknown role' => [['rol' => 'gerente'], 'rol', 'The selected rol is invalid.'],
+    'empty roles' => [['roles' => []], 'roles', 'The roles field is required.'],
+    'unknown role' => [['roles' => ['gerente']], 'roles.0', 'The selected roles.0 is invalid.'],
     'unconfirmed password' => [
         ['password_confirmation' => 'otra-cosa'],
         'password',
@@ -102,14 +104,34 @@ it('updates a user keeping the password when none is sent', function () {
     expect(Hash::check('original123', $usuario->refresh()->password))->toBeTrue();
 });
 
-it('replaces the role of a user', function () {
+it('replaces the roles of a user with the given list', function () {
     $usuario = User::factory()->create(['email' => 'ana@example.com']);
     $usuario->assignRole('vendedor');
 
-    $response = $this->putJson("/api/users/{$usuario->id}", usuarioPayload(['rol' => 'administrador']));
+    $response = $this->putJson("/api/users/{$usuario->id}", usuarioPayload(['roles' => ['administrador']]));
 
     $response->assertOk()->assertJsonPath('data.roles', ['administrador']);
     expect($usuario->refresh()->getRoleNames()->all())->toBe(['administrador']);
+});
+
+it('creates a user with several roles, including one created through the api', function () {
+    Role::create(['name' => 'supervisor', 'guard_name' => 'web'])->givePermissionTo('productos.crear');
+
+    $response = $this->postJson('/api/users', usuarioPayload(['roles' => ['vendedor', 'supervisor']]));
+
+    $response->assertCreated()->assertJsonPath('data.roles', ['vendedor', 'supervisor']);
+    expect(User::firstWhere('email', 'ana@example.com')->can('productos.crear'))->toBeTrue();
+});
+
+it('does not let an administrador remove its own administrador role', function () {
+    $response = $this->putJson("/api/users/{$this->admin->id}", usuarioPayload([
+        'email' => $this->admin->email,
+        'roles' => ['vendedor'],
+    ]));
+
+    $response->assertConflict()
+        ->assertJsonPath('message', 'No puede quitarse a sí mismo el rol administrador.');
+    expect($this->admin->refresh()->getRoleNames()->all())->toBe(['administrador']);
 });
 
 it('revokes the tokens of a user when it is deactivated', function () {

@@ -1,8 +1,7 @@
 <?php
 
+use App\Enums\Rol;
 use App\Models\Cliente;
-use App\Models\User;
-use Laravel\Sanctum\Sanctum;
 
 /**
  * Payload válido para crear o actualizar un cliente, con los cambios indicados.
@@ -24,7 +23,7 @@ function clientePayload(array $overrides = []): array
 }
 
 beforeEach(function () {
-    Sanctum::actingAs(User::factory()->create());
+    actingAsRol(Rol::Administrador);
 });
 
 it('lists clients ordered by name and paginated', function () {
@@ -129,6 +128,16 @@ it('soft deletes a client', function () {
 
     $response->assertNoContent();
     $this->assertSoftDeleted($cliente);
+});
+
+it('lets a vendedor create clients but not delete them', function () {
+    actingAsRol(Rol::Vendedor);
+    $cliente = Cliente::factory()->create();
+
+    $this->postJson('/api/clientes', clientePayload())->assertCreated();
+    $this->deleteJson("/api/clientes/{$cliente->id}")->assertForbidden();
+
+    $this->assertNotSoftDeleted($cliente);
 });
 
 it('returns 401 without a token', function (string $method, string $uri) {

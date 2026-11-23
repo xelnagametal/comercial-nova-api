@@ -1,12 +1,11 @@
 <?php
 
+use App\Enums\Rol;
 use App\Models\Categoria;
 use App\Models\Producto;
-use App\Models\User;
-use Laravel\Sanctum\Sanctum;
 
 beforeEach(function () {
-    Sanctum::actingAs(User::factory()->create());
+    actingAsRol(Rol::Administrador);
 });
 
 it('lists categories ordered by name and paginated with per_page', function () {
@@ -86,6 +85,15 @@ it('refuses to delete a category that has products', function () {
     $response->assertConflict()
         ->assertJsonPath('message', 'No se puede eliminar una categoría que tiene productos.');
     $this->assertNotSoftDeleted($categoria);
+});
+
+it('lets a vendedor list categories but not create them', function () {
+    actingAsRol(Rol::Vendedor);
+
+    $this->getJson('/api/categorias')->assertOk();
+    $this->postJson('/api/categorias', ['nombre' => 'Bebidas'])->assertForbidden();
+
+    $this->assertDatabaseMissing('categorias', ['nombre' => 'Bebidas']);
 });
 
 it('returns 401 without a token', function (string $method, string $uri) {

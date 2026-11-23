@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Enums\Rol;
 use App\Models\Cliente;
 use App\Models\DetalleFactura;
 use App\Models\Factura;
@@ -20,7 +21,7 @@ class FacturaSeeder extends Seeder
     public function run(): void
     {
         $clientes = Cliente::query()->where('activo', true)->get();
-        $vendedores = User::all();
+        $vendedores = User::role(Rol::Vendedor->value)->get();
 
         for ($numero = 1; $numero <= 30; $numero++) {
             DB::transaction(function () use ($numero, $clientes, $vendedores): void {

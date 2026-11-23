@@ -1,9 +1,8 @@
 <?php
 
+use App\Enums\Rol;
 use App\Models\Categoria;
 use App\Models\Producto;
-use App\Models\User;
-use Laravel\Sanctum\Sanctum;
 
 /**
  * Payload válido para crear un producto en la categoría indicada, con los cambios indicados.
@@ -24,7 +23,7 @@ function productoPayload(Categoria $categoria, array $overrides = []): array
 }
 
 beforeEach(function () {
-    Sanctum::actingAs(User::factory()->create());
+    actingAsRol(Rol::Administrador);
 });
 
 it('lists products with their category, ordered by name and paginated', function () {
@@ -167,6 +166,20 @@ it('soft deletes a product', function () {
 
     $response->assertNoContent();
     $this->assertSoftDeleted($producto);
+});
+
+it('lets a vendedor see products but not edit them', function () {
+    actingAsRol(Rol::Vendedor);
+    $producto = Producto::factory()->create(['nombre' => 'Original']);
+
+    $this->getJson("/api/productos/{$producto->id}")->assertOk();
+    $this->putJson("/api/productos/{$producto->id}", productoPayload($producto->categoria, [
+        'codigo' => $producto->codigo,
+        'nombre' => 'Cambio',
+        'version' => 1,
+    ]))->assertForbidden();
+
+    expect($producto->refresh()->nombre)->toBe('Original');
 });
 
 it('returns 401 without a token', function (string $method, string $uri) {

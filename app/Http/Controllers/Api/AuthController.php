@@ -3,11 +3,11 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Resources\UserResource;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Validation\Rules\Password;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -19,80 +19,49 @@ use Illuminate\Validation\ValidationException;
 class AuthController extends Controller
 {
     /**
-     * Registra un usuario nuevo y le emite un token.
-     *
-     * @param  Request  $request  Debe incluir name, email, password, password_confirmation y device_name.
-     * @return JsonResponse  Usuario creado y token en texto plano (201).
-     */
-    public function register(Request $request): JsonResponse
-    {
-        $data = $request->validate([
-            'name'        => ['required', 'string', 'max:255'],
-            'email'       => ['required', 'email', 'max:255', 'unique:users,email'],
-            'password'    => ['required', 'confirmed', Password::defaults()],
-            'device_name' => ['required', 'string', 'max:255'],
-        ]);
-
-        $user = User::create([
-            'name'     => $data['name'],
-            'email'    => $data['email'],
-            'password' => $data['password'], // El cast 'hashed' del modelo lo hashea.
-        ]);
-
-        return response()->json([
-            'user'  => $user,
-            'token' => $user->createToken($data['device_name'])->plainTextToken,
-        ], 201);
-    }
-
-    /**
      * Valida las credenciales y emite un token nuevo.
      *
      * @param  Request  $request  Debe incluir email, password y device_name.
-     * @return JsonResponse  Usuario y token en texto plano.
+     * @return JsonResponse Usuario con sus roles y permisos, y token en texto plano.
      *
-     * @throws ValidationException  Si las credenciales no son válidas (422).
+     * @throws ValidationException Si las credenciales no son válidas (422).
      */
     public function login(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'email'       => ['required', 'email'],
-            'password'    => ['required', 'string'],
+            'email' => ['required', 'email'],
+            'password' => ['required', 'string'],
             'device_name' => ['required', 'string', 'max:255'],
         ]);
 
         $user = User::where('email', $data['email'])->first();
 
-        // Mismo mensaje si el usuario no existe o la contraseña es incorrecta,
-        // para no revelar qué correos están registrados.
-        if (! $user || ! Hash::check($data['password'], $user->password)) {
+        // Mismo mensaje si el usuario no existe (o fue eliminado), está inactivo
+        // o la contraseña es incorrecta, para no revelar qué correos están registrados.
+        if (! $user || ! $user->activo || ! Hash::check($data['password'], $user->password)) {
             throw ValidationException::withMessages([
                 'email' => [__('auth.failed')],
             ]);
         }
 
         return response()->json([
-            'user'  => $user,
+            'user' => new UserResource($user),
             'token' => $user->createToken($data['device_name'])->plainTextToken,
         ]);
     }
 
     /**
-     * Devuelve el usuario dueño del token actual.
-     *
-     * @param  Request  $request
-     * @return JsonResponse
+     * Devuelve el usuario dueño del token actual con sus roles y permisos.
      */
     public function me(Request $request): JsonResponse
     {
-        return response()->json($request->user());
+        return response()->json(new UserResource($request->user()));
     }
 
     /**
      * Revoca solo el token con el que se hizo la petición (cierra sesión en ese dispositivo).
      *
-     * @param  Request  $request
-     * @return JsonResponse  Respuesta vacía (204).
+     * @return JsonResponse Respuesta vacía (204).
      */
     public function logout(Request $request): JsonResponse
     {

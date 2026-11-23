@@ -1,6 +1,10 @@
 <?php
 
+use App\Enums\Rol;
+use App\Models\User;
+use Database\Seeders\RolesYPermisosSeeder;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 /*
@@ -44,7 +48,23 @@ expect()->extend('toBeOne', function () {
 |
 */
 
-function something()
+/**
+ * Crea los roles y permisos de la aplicación y devuelve un usuario con el rol indicado.
+ */
+function usuarioConRol(Rol $rol): User
 {
-    // ..
+    (new RolesYPermisosSeeder)->run();
+
+    return User::factory()->create()->assignRole($rol->value);
+}
+
+/**
+ * Autentica con Sanctum a un usuario nuevo con el rol indicado y lo devuelve.
+ */
+function actingAsRol(Rol $rol): User
+{
+    $usuario = usuarioConRol($rol);
+    Sanctum::actingAs($usuario);
+
+    return $usuario;
 }

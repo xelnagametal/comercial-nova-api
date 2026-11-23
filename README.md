@@ -177,7 +177,8 @@ El build de producción se define en el archivo `Anybuild`:
 
 - Fija PHP 8.5, porque el valor por defecto de Anybuild (8.3) no cumple el mínimo de las dependencias.
 - Ejecuta un script de Composer propio en lugar de `post-update-cmd`, que depende de un comando de Laravel Boost disponible solo en local.
-- Ejecuta `php artisan migrate --force` y `php artisan db:seed --class=RolesYPermisosSeeder --force` después de cada despliegue, para crear los permisos nuevos del enum y dárselos al administrador. El seeder es idempotente y no pisa los permisos de otros roles editados desde la API.
+- Ejecuta `php artisan migrate --force --seed --seeder=RolesYPermisosSeeder` después de cada despliegue, para crear los permisos nuevos del enum y dárselos al administrador. El seeder es idempotente y no pisa los permisos de otros roles editados desde la API. El hook no pasa por una shell, así que no admite `&&`: debe ser un único comando.
+- `fakerphp/faker` está en `require` porque los seeders de datos de prueba usan factories también en producción.
 
 Las variables de producción van en `.env.production`, que no se versiona.
 

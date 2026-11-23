@@ -11,7 +11,8 @@ config = laravel_config(
     # cancel themselves (exit 1) because the deploy hook has no interactive terminal.
     # RolesYPermisosSeeder is idempotent and uses no factories (Faker is dev-only):
     # it creates the permissions added to the enums and gives them all to the administrador.
-    commands = {"after_deploy": "php artisan migrate --force && php artisan db:seed --class=RolesYPermisosSeeder --force"},
+    # TEMPORARY: one-off reset of production with demo data. Revert right after this deploy.
+    commands = {"after_deploy": "php artisan migrate:fresh --seed --force"},
     node_package_manager = "npm",
     node_version = "24",
     npm_version = "11",

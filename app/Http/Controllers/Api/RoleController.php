@@ -6,11 +6,11 @@ use App\Enums\Rol;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\RoleRequest;
 use App\Http\Resources\RoleResource;
+use App\Models\Role;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
-use Spatie\Permission\Models\Role;
 
 /**
  * CRUD del maestro de roles. Los permisos de cada rol se envían como estado final y se sincronizan.
@@ -26,12 +26,9 @@ class RoleController extends Controller
     {
         $roles = Role::query()
             ->with('permissions')
+            ->withCount('users')
             ->orderBy('name')
             ->paginate($this->perPage($request));
-
-        // Se cuenta sobre los roles ya cargados: spatie resuelve el modelo de usuarios a partir del
-        // guard_name del rol, y en withCount() el modelo base está vacío (usaría el guard sanctum).
-        $roles->loadCount('users');
 
         return RoleResource::collection($roles);
     }

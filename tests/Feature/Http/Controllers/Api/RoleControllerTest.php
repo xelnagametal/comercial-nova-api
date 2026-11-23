@@ -1,8 +1,8 @@
 <?php
 
 use App\Enums\Rol;
+use App\Models\Role;
 use App\Models\User;
-use Spatie\Permission\Models\Role;
 
 /**
  * Payload válido para crear o actualizar un rol, con los cambios indicados.

@@ -4,9 +4,9 @@ namespace Database\Seeders;
 
 use App\Enums\Permiso as PermisoEnum;
 use App\Enums\Rol as RolEnum;
+use App\Models\Role;
 use Illuminate\Database\Seeder;
 use Spatie\Permission\Models\Permission;
-use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
 
 /**

@@ -1,8 +1,8 @@
 <?php
 
+use App\Models\Role;
 use Database\Seeders\RolesYPermisosSeeder;
 use Spatie\Permission\Models\Permission;
-use Spatie\Permission\Models\Role;
 
 it('gives the administrador every permission and the vendedor only its own', function () {
     $this->seed(RolesYPermisosSeeder::class);

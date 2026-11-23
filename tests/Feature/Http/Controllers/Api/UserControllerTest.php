@@ -1,9 +1,9 @@
 <?php
 
 use App\Enums\Rol;
+use App\Models\Role;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
-use Spatie\Permission\Models\Role;
 
 /**
  * Payload válido para crear o actualizar un usuario, con los cambios indicados.

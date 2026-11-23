@@ -7,9 +7,11 @@ load("//anybuild/tools:laravel.bzl", "laravel_build", "laravel_config", "laravel
 
 config = laravel_config(
     schema = 1,
-    # `--force`: without it `migrate` asks for confirmation in production and
-    # cancels itself (exit 1) because the deploy hook has no interactive terminal.
-    commands = {"after_deploy": "php artisan migrate --force"},
+    # `--force`: without it `migrate`/`db:seed` ask for confirmation in production and
+    # cancel themselves (exit 1) because the deploy hook has no interactive terminal.
+    # RolesYPermisosSeeder is idempotent and uses no factories (Faker is dev-only):
+    # it creates the permissions added to the enums and gives them all to the administrador.
+    commands = {"after_deploy": "php artisan migrate --force && php artisan db:seed --class=RolesYPermisosSeeder --force"},
     node_package_manager = "npm",
     node_version = "24",
     npm_version = "11",
